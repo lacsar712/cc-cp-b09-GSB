@@ -50,11 +50,21 @@ label {
   font-size: 0.875rem;
 }
 
-input {
+input,
+select {
   padding: 0.5rem 0.65rem;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
   min-width: 140px;
+  font-size: 0.9rem;
+  background: #fff;
+  color: #0f172a;
+}
+
+button.secondary.outline {
+  background: #fff;
+  color: #0369a1;
+  border: 1px solid #0369a1;
 }
 
 button {

@@ -10,6 +10,9 @@ DSN = os.environ.get(
     "DATABASE_URL", "postgresql://app:app@localhost:54397/coldchain"
 )
 
+# 每次成功提交读数固定消耗一个单位冷媒。
+CONSUMPTION_UNIT = 1
+
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS probe_readings (
     id serial PRIMARY KEY,
@@ -23,6 +26,31 @@ CREATE TABLE IF NOT EXISTS probe_readings (
     processed_at timestamptz
 );
 CREATE INDEX IF NOT EXISTS idx_probe_readings_status ON probe_readings (status, id);
+
+-- 冷媒批次：记录员维护批次起始余量，余量只能由服务端按明细重算。
+CREATE TABLE IF NOT EXISTS refrigerant_batches (
+    id serial PRIMARY KEY,
+    batch_no text NOT NULL UNIQUE,
+    start_amount integer NOT NULL CHECK (start_amount > 0),
+    remaining integer NOT NULL CHECK (remaining >= 0),
+    created_by text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- 冷媒消耗明细：与读数同一次事务写入，余量与明细据此对账。
+CREATE TABLE IF NOT EXISTS refrigerant_consumptions (
+    id serial PRIMARY KEY,
+    batch_id integer NOT NULL REFERENCES refrigerant_batches(id),
+    amount integer NOT NULL CHECK (amount > 0),
+    reading_id integer REFERENCES probe_readings(id),
+    created_by text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_consumptions_batch
+    ON refrigerant_consumptions (batch_id, id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_consumption_reading
+    ON refrigerant_consumptions (reading_id)
+    WHERE reading_id IS NOT NULL;
 """
 
 
