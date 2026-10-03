@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
+import { BalancePage } from "./Balance.jsx";
 
 const TOKEN_KEY = "coldchain_token";
 const USER_KEY = "coldchain_user";
@@ -27,7 +28,8 @@ export function App() {
     }
   });
   const [loginForm, setLoginForm] = useState({ username: "logger", password: "log123456" });
-  const [submitForm, setSubmitForm] = useState({ probe_id: "", temp_c: "" });
+  const [submitForm, setSubmitForm] = useState({ probe_id: "", temp_c: "", batch_id: "" });
+  const [page, setPage] = useState("readings");
   const [rows, setRows] = useState([]);
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
@@ -103,6 +105,7 @@ export function App() {
         body: JSON.stringify({
           probe_id: submitForm.probe_id,
           temp_c: parseFloat(submitForm.temp_c),
+          batch_id: submitForm.batch_id,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -111,7 +114,7 @@ export function App() {
         return;
       }
       setMsg(data.message || "已提交");
-      setSubmitForm({ probe_id: "", temp_c: "" });
+      setSubmitForm({ probe_id: "", temp_c: "", batch_id: "" });
       await loadReadings();
     } finally {
       setLoading(false);
@@ -176,82 +179,117 @@ export function App() {
         </div>
       </div>
 
-      {isWriter && (
-        <div class="card">
-          <h2 style={{ marginTop: 0, fontSize: "1.1rem" }}>提交读数</h2>
-          <form onSubmit={onSubmit}>
-            <div class="row">
-              <label>
-                探头编号
-                <input
-                  required
-                  value={submitForm.probe_id}
-                  onInput={(e) =>
-                    setSubmitForm({ ...submitForm, probe_id: e.target.value })
-                  }
-                  placeholder="例如 探头C03"
-                />
-              </label>
-              <label>
-                温度（℃）
-                <input
-                  required
-                  type="number"
-                  step="0.1"
-                  value={submitForm.temp_c}
-                  onInput={(e) =>
-                    setSubmitForm({ ...submitForm, temp_c: e.target.value })
-                  }
-                />
-              </label>
-              <button type="submit" disabled={loading}>
-                提交
-              </button>
+      <nav class="tabs">
+        <button
+          type="button"
+          class={page === "readings" ? "tab active" : "tab"}
+          onClick={() => setPage("readings")}
+        >
+          读数判定
+        </button>
+        <button
+          type="button"
+          class={page === "balance" ? "tab active" : "tab"}
+          onClick={() => setPage("balance")}
+        >
+          余量估算
+        </button>
+      </nav>
+
+      {page === "balance" && <BalancePage user={user} authHeaders={authHeaders} />}
+
+      {page === "readings" && (
+        <div>
+          {isWriter && (
+            <div class="card">
+              <h2 style={{ marginTop: 0, fontSize: "1.1rem" }}>提交读数</h2>
+              <form onSubmit={onSubmit}>
+                <div class="row">
+                  <label>
+                    探头编号
+                    <input
+                      required
+                      value={submitForm.probe_id}
+                      onInput={(e) =>
+                        setSubmitForm({ ...submitForm, probe_id: e.target.value })
+                      }
+                      placeholder="例如 探头C03"
+                    />
+                  </label>
+                  <label>
+                    温度（℃）
+                    <input
+                      required
+                      type="number"
+                      step="0.1"
+                      value={submitForm.temp_c}
+                      onInput={(e) =>
+                        setSubmitForm({ ...submitForm, temp_c: e.target.value })
+                      }
+                    />
+                  </label>
+                  <label>
+                    批次编号（选填）
+                    <input
+                      value={submitForm.batch_id}
+                      onInput={(e) =>
+                        setSubmitForm({ ...submitForm, batch_id: e.target.value })
+                      }
+                      placeholder="填写后本次提交消耗该批次 1 单位"
+                    />
+                  </label>
+                  <button type="submit" disabled={loading}>
+                    提交
+                  </button>
+                </div>
+                {error && <p class="err">{error}</p>}
+                {msg && <p class="ok">{msg}</p>}
+              </form>
             </div>
-            {error && <p class="err">{error}</p>}
-            {msg && <p class="ok">{msg}</p>}
-          </form>
+          )}
+
+          <div class="card">
+            <h2 style={{ marginTop: 0, fontSize: "1.1rem" }}>读数列表</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>编号</th>
+                  <th>探头</th>
+                  <th>温度℃</th>
+                  <th>结论</th>
+                  <th>说明</th>
+                  <th>状态</th>
+                  <th>提交人</th>
+                  <th>批次</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id}>
+                    <td>{r.id}</td>
+                    <td>{r.probe_id}</td>
+                    <td>{r.temp_c}</td>
+                    <td>
+                      <span class={verdictClass(r.verdict, r.status)}>
+                        {displayVerdict(r)}
+                      </span>
+                    </td>
+                    <td>{r.reason || "—"}</td>
+                    <td>{r.status}</td>
+                    <td>{r.created_by}</td>
+                    <td>{r.batch_id || "—"}</td>
+                  </tr>
+                ))}
+                {rows.length === 0 && (
+                  <tr>
+                    <td colspan="8">暂无数据</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
-
-      <div class="card">
-        <h2 style={{ marginTop: 0, fontSize: "1.1rem" }}>读数列表</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>编号</th>
-              <th>探头</th>
-              <th>温度℃</th>
-              <th>结论</th>
-              <th>说明</th>
-              <th>状态</th>
-              <th>提交人</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td>{r.id}</td>
-                <td>{r.probe_id}</td>
-                <td>{r.temp_c}</td>
-                <td>
-                  <span class={verdictClass(r.verdict, r.status)}>
-                    {displayVerdict(r)}
-                  </span>
-                </td>
-                <td>{r.reason || "—"}</td>
-                <td>{r.status}</td>
-                <td>{r.created_by}</td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr>
-                <td colspan="7">暂无数据</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }

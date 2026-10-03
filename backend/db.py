@@ -23,6 +23,30 @@ CREATE TABLE IF NOT EXISTS probe_readings (
     processed_at timestamptz
 );
 CREATE INDEX IF NOT EXISTS idx_probe_readings_status ON probe_readings (status, id);
+
+-- 冷媒批次：记录员维护起始余量，remaining 由服务端随消耗明细同事务重算
+CREATE TABLE IF NOT EXISTS refrigerant_batches (
+    batch_id text PRIMARY KEY,
+    start_balance integer NOT NULL CHECK (start_balance >= 0),
+    remaining integer NOT NULL,
+    created_by text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- 消耗明细：每次成功提交读数记一条，固定消耗 1 个单位
+CREATE TABLE IF NOT EXISTS refrigerant_consumptions (
+    id serial PRIMARY KEY,
+    batch_id text NOT NULL REFERENCES refrigerant_batches (batch_id),
+    reading_id integer REFERENCES probe_readings (id),
+    units integer NOT NULL DEFAULT 1,
+    created_by text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_refrigerant_consumptions_batch
+    ON refrigerant_consumptions (batch_id, id);
+CREATE INDEX IF NOT EXISTS idx_refrigerant_consumptions_reading
+    ON refrigerant_consumptions (reading_id);
 """
 
 
